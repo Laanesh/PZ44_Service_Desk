@@ -29,3 +29,59 @@ form.addEventListener("submit", async (event) => {
 });
 refreshButton.addEventListener("click", loadTickets);
 // TODO 5: вызовите loadTickets() при загрузке страницы.
+function renderTickets(items) {
+  list.replaceChildren();
+  for (const ticket of items) {
+    const card = document.createElement("article");
+    card.className = "card";
+    card.textContent = `#${ticket.id} · ${ticket.customer} · ${ticket.problem} · ${ticket.status}`;
+    list.append(card);
+  }
+  if (!items.length) list.textContent = "Обращений пока нет";
+}
+
+async function loadTickets(message = "Список обновлён") {
+  try {
+    const response = await fetch("/api/tickets");
+    if (!response.ok) throw new Error(`Ошибка загрузки: ${response.status}`);
+    const data = await response.json();
+    renderTickets(data.items);
+    summary.textContent = `Всего обращений: ${data.total}`;
+    setStatus(message, "success");
+  } catch (error) {
+    setStatus(error.message, "error");
+  }
+}
+
+async function createTicket(payload) {
+  const response = await fetch("/api/tickets", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload)
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || "Не удалось создать обращение");
+  return result;
+}
+
+form.addEventListener("submit", async event => {
+  event.preventDefault();
+  const customer = form.elements.customer.value.trim();
+  const problem = form.elements.problem.value.trim();
+  if (customer.length < 2 || problem.length < 5) {
+    setStatus("Введите имя от двух символов и описание от пяти", "error");
+    return;
+  }
+  sendButton.disabled = true;
+  try {
+    const result = await createTicket({customer, problem});
+    form.reset();
+    await loadTickets(result.message);
+  } catch (error) {
+    setStatus(error.message, "error");
+  } finally {
+    sendButton.disabled = false;
+  }
+});
+refreshButton.addEventListener("click", () => loadTickets());
+loadTickets();
